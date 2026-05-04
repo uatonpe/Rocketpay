@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anik - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --initiated-color: #ff9f43;
+            --collected-color: #28c76f;
+            --danger-color: #ea5455;
+            --percentage-color: #6f42c1;
+            --text-color: #4B5563;
+            --bg-color: #f8f8f8;
+            --card-bg: #ffffff;
+            --shadow: 0 10px 30px rgba(0,0,0,0.09);
+            --light-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            --excel-color: #1D6F42;
+            --risky-color: #c62828;
+        }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--bg-color); margin: 0; padding: 15px; color: var(--text-color); }
+        #loader-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; text-align: center; flex-direction: column; transition: opacity 0.5s ease; }
+        .loader-content h2 { font-size: 1.5rem; color: var(--primary-color); margin-bottom: 10px; }
+        .loader-content p { font-size: 1rem; color: var(--text-color); }
+        .spinner { border: 5px solid rgba(0,0,0,0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: var(--primary-color); margin-top: 20px; animation: spin 1s ease infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .container { max-width: 1600px; margin: auto; padding: 15px; }
+        .logo-container { text-align: center; margin-bottom: 25px; }
+        .logo-container img { max-width: 250px; height: auto; }
+        #status-box { padding: 15px; margin: 20px 0; border-radius: 12px; font-weight: 500; border: 1px solid; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .status-loading { background-color: #e6f7ff; color: #005a8c; border-color: #91d5ff; }
+        .status-success { background-color: #f6ffed; color: #389e0d; border-color: #b7eb8f; }
+        .status-error { background-color: #fff1f0; color: #d4380d; border-color: #ffa39e; }
+        .controls-container { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; align-items: center; background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: var(--light-shadow); }
+        .search-wrapper { flex-grow: 1; position: relative; }
+        .search-wrapper::before { content: '🔍'; position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa; }
+        .search-wrapper input, .date-filter-wrapper input, .staff-filter-wrapper select, .unit-filter-wrapper select, .village-filter-wrapper select { padding: 12px 18px; border: 1px solid #dfe1e5; border-radius: 25px; font-size: 15px; width: 100%; box-sizing: border-box; transition: border-color 0.3s, box-shadow 0.3s; }
+        .search-wrapper input { padding-left: 40px; }
+        .search-wrapper input:focus, .date-filter-wrapper input:focus, .staff-filter-wrapper select:focus, .unit-filter-wrapper select:focus, .village-filter-wrapper select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(0,123,255,0.2); }
+        .date-filter-wrapper, .staff-filter-wrapper, .unit-filter-wrapper, .village-filter-wrapper { display: flex; align-items: center; gap: 10px; }
+        .date-filter-wrapper label, .staff-filter-wrapper label, .unit-filter-wrapper label, .village-filter-wrapper label { font-weight: 500; white-space: nowrap; }
+        .clickable { cursor: pointer; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .clickable:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
+        .section-title { font-weight: 600; color: #333; margin-bottom: 15px; }
+        #resetButton, #downloadScheduleButton { color: white; padding: 12px 20px; border: none; border-radius: 25px; font-size: 15px; cursor: pointer; transition: background-color 0.3s; }
+        #resetButton { background-color: #6c757d; }
+        #downloadScheduleButton { background-color: var(--primary-color); }
+        #resetButton:hover { background-color: #5a6268; }
+        #downloadScheduleButton:hover { background-color: #0056b3; }
+        .quick-stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-box { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: var(--light-shadow); text-align: center; }
+        .stat-box .stat-title { font-weight: 500; color: #6c757d; margin-bottom: 10px; }
+        .stat-box .stat-value { font-size: 2rem; font-weight: 600; }
+        .stat-box .stat-value.success { color: var(--collected-color); }
+        .stat-box .stat-value.danger { color: var(--danger-color); }
+        .kpi-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 25px; margin-bottom: 30px; }
+        .kpi-box { padding: 25px; border-radius: 16px; display: flex; flex-direction: column; box-shadow: var(--shadow); border: none; }
+        .kpi-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .kpi-title { font-size: 16px; font-weight: 600; }
+        .kpi-icon { font-size: 28px; }
+        .kpi-value { font-size: 38px; font-weight: 700; line-height: 1.2; text-align: left; width: 100%; margin-top: 10px; }
+        .kpi-box.total { background: #e7f1ff; color: #0056b3; }
+        .kpi-box.initiated { background: #fff5e8; color: #d97706; }
+        .kpi-box.collected { background: #eaf9f2; color: #1e8755; }
+        .kpi-box.settled { background: #e0f7fa; color: #006064; }
+        .kpi-box.percentage { background: #f3e5f5; color: var(--percentage-color); }
+        .kpi-box.danger { background: #fde8e8; color: var(--danger-color); }
+        .kpi-box.risky { background: #ffebee; color: var(--risky-color); }
+        .table-container { background: var(--card-bg); padding: 25px; border-radius: 16px; box-shadow: var(--shadow); position: relative; }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 16px 18px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 15px; white-space: nowrap; }
+        th { font-weight: 600; color: #495057; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
+        tbody tr:hover { background-color: #f8f9fa; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(5px); }
+        .modal-content { background-color: var(--card-bg); margin: 5% auto; padding: 25px; border: none; width: 90%; max-width: 950px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideIn 0.4s; position: relative; }
+        @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header { padding-bottom: 15px; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .modal-header-content { flex-grow: 1; }
+        .modal-header h2 { border: none; margin-bottom: 5px; margin-top: 0; }
+        .modal-header p { margin: 0; color: #6c757d; }
+        .close-button { color: #aaa; font-size: 32px; font-weight: bold; line-height: 1; margin-left: 15px; }
+        .close-button:hover, .close-button:focus { color: black; text-decoration: none; cursor: pointer; }
+        #kpi-modal-body, #mandate-modal-body { margin-top: 15px; max-height: 70vh; overflow-y: auto; }
+        .status-badge { display: inline-block; padding: 6px 14px; border-radius: 18px; font-size: 13px; font-weight: 600; }
+        .status-collection-success { background-color: #d4edda; color: #155724; }
+        .status-scheduled { background-color: #e2e3e5; color: #383d41; }
+        .status-failed { background-color: #f8d7da; color: #721c24; }
+        .status-initiated { background-color: #fff3cd; color: #856404; }
+        .clickable-mandate-name { cursor: pointer; color: var(--primary-color); font-weight: 600; text-decoration: underline; }
+        .clickable-count { cursor: pointer; color: var(--primary-color); font-weight: 600; text-decoration: underline; }
+        .whatsapp-icon { cursor: pointer; font-size: 20px; color: #25D366; }
+        .reason-text { font-size: 0.9em; color: #e63946; font-style: italic; white-space: normal; max-width: 200px; }
+        .excel-btn { background-color: var(--excel-color); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: background 0.3s; text-decoration: none; margin-right: 10px; }
+        .excel-btn:hover { background-color: #145230; }
+        .header-actions { display: flex; align-items: center; }
+        #staffReportExcelBtn { position: absolute; top: 25px; right: 25px; }
+    </style>
+</head>
+<body>
+    <div id="loader-overlay">
+        <div class="loader-content">
+            <h2>डेटा लोड होत आहे...</h2>
+            <p id="loader-progress-text">कृपया प्रतीक्षा करा, यास काही क्षण लागू शकतात.</p>
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="logo-container">
+            <img src="https://anikfin.com/wp-content/uploads/2024/06/anik-horizontal-1-1024x400.png" alt="Anik Logo">
+        </div>
+
+        <div class="controls-container">
+            <div class="search-wrapper"><input type="search" id="searchInput" placeholder="नाव, मोबाईल किंवा बिल क्र. द्वारे शोधा..."></div>
+            <div class="unit-filter-wrapper"><label for="unitFilter">युनिट:</label><select id="unitFilter"><option value="All">सर्व</option></select></div>
+            <div class="village-filter-wrapper"><label for="villageFilter">गाव:</label><select id="villageFilter"><option value="All">सर्व</option></select></div>
+            <div class="staff-filter-wrapper"><label for="staffFilter">स्टाफ:</label><select id="staffFilter"><option value="All">सर्व</option></select></div>
+            <div class="date-filter-wrapper"><label for="startDate">पासून:</label><input type="date" id="startDate"><label for="endDate">पर्यंत:</label><input type="date" id="endDate"></div>
+            <button id="downloadScheduleButton">शेड्यूल डाउनलोड करा</button>
+            <button id="resetButton">रीसेट</button>
+        </div>
+
+        <h2 class="section-title" id="quick-stats-title">आजची स्थिती 📊</h2>
+        <div class="quick-stats-container">
+            <div class="stat-box clickable" onclick="showKpiDetails('today_collected')"><div class="stat-title">जमा रक्कम</div><div class="stat-value success" id="today-collected">₹0</div></div>
+            <div class="stat-box clickable" onclick="showKpiDetails('today_due')"><div class="stat-title">देय हप्ते</div><div class="stat-value" id="today-due">0</div></div>
+            <div class="stat-box clickable" onclick="showKpiDetails('today_failed')"><div class="stat-title">अयशस्वी पेमेंट</div><div class="stat-value danger" id="today-failed">0</div></div>
+        </div>
+
+        <h2 class="section-title">एकूण माहिती 📈</h2>
+        <div class="kpi-container">
+            <div id="kpi-total" class="kpi-box total clickable" onclick="showKpiDetails('total')"><div class="kpi-header"><div class="kpi-title">एकूण सक्रिय मँडेट्स</div><div class="kpi-icon">📋</div></div><div class="kpi-value" id="kpi-total-mandates">0</div></div>
+            <div id="kpi-pending" class="kpi-box initiated clickable" onclick="showKpiDetails('pending')"><div class="kpi-header"><div class="kpi-title">प्रलंबित मँडेट्स</div><div class="kpi-icon">🕒</div></div><div class="kpi-value" id="kpi-pending-mandates">0</div></div>
+            <div id="kpi-initiated" class="kpi-box initiated clickable" onclick="showKpiDetails('initiated')"><div class="kpi-header"><div class="kpi-title">पेमेंट प्रक्रियेत</div><div class="kpi-icon">⏳</div></div><div class="kpi-value" id="kpi-initiated-amount">₹0</div></div>
+            <div id="kpi-collected" class="kpi-box collected clickable" onclick="showKpiDetails('collected')"><div class="kpi-header"><div class="kpi-title">एकूण जमा रक्कम</div><div class="kpi-icon">💰</div></div><div class="kpi-value" id="kpi-total-collected">₹0</div></div>
+            <div id="kpi-settled" class="kpi-box settled clickable" onclick="showKpiDetails('settled')"><div class="kpi-header"><div class="kpi-title">बँकेत जमा</div><div class="kpi-icon">🏦</div></div><div class="kpi-value" id="kpi-settled-amount">₹0</div></div>
+            <div id="kpi-percentage" class="kpi-box percentage"><div class="kpi-header"><div class="kpi-title">वसुली %</div><div class="kpi-icon">📊</div></div><div class="kpi-value" id="kpi-collection-percentage">0%</div></div>
+            <div id="kpi-failed-staff" class="kpi-box danger clickable" onclick="showStaffWiseFailedPayments()"><div class="kpi-header"><div class="kpi-title">स्टाफनुसार अयशस्वी पेमेंट</div><div class="kpi-icon">⚠️</div></div><div class="kpi-value" id="kpi-failed-staff-count">0</div></div>
+            <div id="kpi-risky" class="kpi-box risky clickable" onclick="showKpiDetails('risky')"><div class="kpi-header"><div class="kpi-title">धोकादायक ग्राहक</div><div class="kpi-icon">🚫</div></div><div class="kpi-value" id="kpi-risky-count">0</div></div>
+        </div>
+
+        <div id="status-box" class="status-loading">सुरू करत आहे...</div>
+
+        <div class="table-container" id="staff-report-container" style="margin-top: 30px;display: block;">
+            <h2 id="staff-report-title" style="display:inline-block;">स्टाफनुसार वसुली रिपोर्ट</h2>
+            <button id="staffReportExcelBtn" class="excel-btn" style="display:none;" onclick="downloadExcel(staffReportExportData, 'Staff_Collection_Report')">📥 Excel डाउनलोड</button>
+            <div class="table-wrapper" id="staff-report-content" style="margin-top: 15px;"><p>रिपोर्ट पाहण्यासाठी कृपया वरून 'पासून' आणि 'पर्यंत' दोन्ही तारखा निवडा.</p></div>
+        </div>
+    </div>
+
+    <div id="kpiDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-header-content"><h2 id="kpi-modal-title">तपशील</h2></div>
+                <div class="header-actions"><button id="kpiModalExcelBtn" class="excel-btn" style="display:none;">📥 Excel</button><span class="close-button" data-modal-id="kpiDetailModal">&times;</span></div>
+            </div>
+            <div id="kpi-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="mandateDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-header-content"><h2 id="mandate-modal-title">हप्त्यांचे वेळापत्रक</h2><p id="mandate-modal-subtitle"></p></div>
+                <div class="header-actions"><button id="mandateModalExcelBtn" class="excel-btn" style="display:none;">📥 Excel</button><span class="close-button" data-modal-id="mandateDetailModal">&times;</span></div>
+            </div>
+            <div id="mandate-modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        const DATA_API_URL = 'get_data.php';
+
+        let allMandatesFromServer = [];
+        let allMandateDataMap = new Map();
+        let allInstallmentData = new Map();
+        let staffDataMap = new Map();
+        let unitVillageStaffMap = new Map();
+        let staffReportDetails = new Map();
+        let staffFailedDetails = new Map();
+        let currentModalExportData = [];
+        let currentModalExportTitle = 'Report';
+        let staffReportExportData = [];
+
+        const collectedPendingBankStatuses = ['collection_success', 'settlement_initiated', 'settlement_failed'];
+        const bankSettledStatuses = ['settlement_success'];
+        const collectedAllStatuses = ['collection_success', 'settlement_initiated', 'settlement_failed', 'settlement_success'];
+        const actualDateStatuses = ['collection_success', 'settlement_initiated', 'settlement_failed', 'settlement_success'];
+
+        const dom = {
+            loaderOverlay: document.getElementById('loader-overlay'),
+            loaderProgressText: document.getElementById('loader-progress-text'),
+            statusBox: document.getElementById('status-box'),
+            searchInput: document.getElementById('searchInput'),
+            unitFilter: document.getElementById('unitFilter'),
+            villageFilter: document.getElementById('villageFilter'),
+            staffFilter: document.getElementById('staffFilter'),
+            startDateInput: document.getElementById('startDate'),
+            endDateInput: document.getElementById('endDate'),
+            resetButton: document.getElementById('resetButton'),
+            downloadScheduleButton: document.getElementById('downloadScheduleButton'),
+            quickStatsTitle: document.getElementById('quick-stats-title'),
+            staffReportContent: document.getElementById('staff-report-content'),
+            staffReportExcelBtn: document.getElementById('staffReportExcelBtn'),
+            kpiDetailModal: {
+                modal: document.getElementById('kpiDetailModal'),
+                title: document.getElementById('kpi-modal-title'),
+                body: document.getElementById('kpi-modal-body'),
+                excelBtn: document.getElementById('kpiModalExcelBtn'),
+                open: function() { this.modal.style.display = 'block'; },
+                close: function() { this.modal.style.display = 'none'; }
+            },
+            mandateDetailModal: {
+                modal: document.getElementById('mandateDetailModal'),
+                title: document.getElementById('mandate-modal-title'),
+                subtitle: document.getElementById('mandate-modal-subtitle'),
+                body: document.getElementById('mandate-modal-body'),
+                excelBtn: document.getElementById('mandateModalExcelBtn'),
+                open: function() { this.modal.style.display = 'block'; },
+                close: function() { this.modal.style.display = 'none'; }
+            }
+        };
+
+        const formatDate = (epoch) => epoch ? new Date(epoch).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+        const formatCurrency = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
+
+        const translateStatus = (s) => {
+            const t = {
+                'pending': 'प्रलंबित',
+                'accepted': 'स्वीकारले',
+                'active': 'सक्रिय',
+                'completed': 'पूर्ण',
+                'terminated': 'समाप्त',
+                'cancelled': 'रद्द',
+                'expired': 'कालबाह्य',
+                'paused': 'थांबवले',
+                'halted': 'रोखले',
+                'created': 'हप्ते लावलेले आहेत',
+                'scheduled': 'शेड्यूल केले',
+                'collection_initiated': 'पेमेंट प्रक्रिया सुरू',
+                'collection_failed': 'पेमेंट अयशस्वी',
+                'collection_success': 'ग्राहकांकडुन पैसे जमा झाले (बॅंकेत जमा होणे बाकी)',
+                'settlement_initiated': 'ग्राहकांकडुन पैसे जमा झाले (बॅंकेत जमा होणे बाकी)',
+                'settlement_success': 'पैसे बँकेत जमा',
+                'settlement_failed': 'ग्राहकांकडुन पैसे जमा झाले (बॅंकेत जमा होणे बाकी)'
+            };
+            return t[s] || s;
+        };
+
+        const getStatusBadgeClass = (s) => collectedAllStatuses.includes(s) ? 'status-collection-success' : s === 'collection_failed' ? 'status-failed' : s === 'collection_initiated' ? 'status-initiated' : 'status-scheduled';
+
+        const getActualDate = (inst) => inst.settled_at || inst.collected_at || inst.updated_at || inst.payment_date || inst.due_date;
+
+        const getEffectiveDate = (inst) => {
+            if (collectedAllStatuses.includes(inst.status)) return new Date(getActualDate(inst)).getTime();
+            return new Date(inst.due_date).getTime();
+        };
+
+        function updateLoader(message) {
+            dom.loaderProgressText.innerText = message;
+            dom.statusBox.innerHTML = `<h4>${message}</h4>`;
+        }
+
+        function populateFilters(unitMap) {
+            dom.unitFilter.innerHTML = '<option value="All">सर्व युनिट</option>';
+            Object.keys(unitMap).sort().forEach(unit => dom.unitFilter.add(new Option(unit, unit)));
+        }
+
+        function updateVillageDropdown() {
+            const selectedUnit = dom.unitFilter.value;
+            dom.villageFilter.innerHTML = '<option value="All">सर्व गाव</option>';
+            if (selectedUnit !== 'All' && unitVillageStaffMap.has(selectedUnit)) {
+                const villagesMap = unitVillageStaffMap.get(selectedUnit);
+                Array.from(villagesMap.keys()).sort().forEach(village => dom.villageFilter.add(new Option(village, village)));
+            }
+            updateStaffDropdown();
+        }
+
+        function updateStaffDropdown() {
+            const selectedUnit = dom.unitFilter.value;
+            const selectedVillage = dom.villageFilter.value;
+            dom.staffFilter.innerHTML = '<option value="All">सर्व स्टाफ</option>';
+            if (selectedUnit !== 'All') {
+                const staffSet = new Set();
+                const villagesMap = unitVillageStaffMap.get(selectedUnit);
+                if (villagesMap) {
+                    if (selectedVillage === 'All') villagesMap.forEach(staffs => staffs.forEach(staff => staffSet.add(staff)));
+                    else if (villagesMap.has(selectedVillage)) villagesMap.get(selectedVillage).forEach(staff => staffSet.add(staff));
+                }
+                Array.from(staffSet).sort().forEach(staff => dom.staffFilter.add(new Option(staff, staff)));
+            }
+            updateDashboard();
+        }
+
+        async function initializeDashboard() {
+            try {
+                dom.statusBox.className = 'status-loading';
+                updateLoader('सर्व्हरवरून डेटा मिळवत आहे...');
+                const response = await fetch(DATA_API_URL);
+                if (!response.ok) throw new Error('सर्व्हरवरून डेटा मिळवता आला नाही.');
+                const data = await response.json();
+                updateLoader('डेटावर प्रक्रिया करत आहे...');
+
+                allMandatesFromServer = data.mandates || [];
+                allMandateDataMap.clear();
+                allMandatesFromServer.forEach(m => allMandateDataMap.set(m.id, m));
+
+                allInstallmentData.clear();
+                Object.entries(data.installments || {}).forEach(([mandateId, installments]) => allInstallmentData.set(mandateId, installments));
+
+                staffDataMap.clear();
+                Object.entries(data.staffMap || {}).forEach(([loanNumber, staffInfo]) => staffDataMap.set(loanNumber, staffInfo));
+
+                unitVillageStaffMap.clear();
+                Object.entries(data.unitMap || {}).forEach(([unit, villages]) => {
+                    const villageMap = new Map();
+                    Object.entries(villages).forEach(([village, staffs]) => villageMap.set(village, new Set(staffs)));
+                    unitVillageStaffMap.set(unit, villageMap);
+                });
+
+                updateLoader('फिल्टर्स तयार करत आहे...');
+                populateFilters(data.unitMap || {});
+                const lastUpdatedDate = data.last_updated ? new Date(data.last_updated * 1000).toLocaleString('mr-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
+                dom.statusBox.className = 'status-success';
+                dom.statusBox.innerHTML = `<h4>यशस्वी! ${allMandatesFromServer.length} एकूण मँडेट्स रेकॉर्ड लोड झाले. (शेवटचे अपडेट: ${lastUpdatedDate})</h4>`;
+
+                dom.searchInput.addEventListener('input', updateDashboard);
+                dom.unitFilter.addEventListener('change', updateVillageDropdown);
+                dom.villageFilter.addEventListener('change', updateStaffDropdown);
+                dom.staffFilter.addEventListener('change', updateDashboard);
+                dom.startDateInput.addEventListener('change', updateDashboard);
+                dom.endDateInput.addEventListener('change', updateDashboard);
+                dom.resetButton.addEventListener('click', resetFilters);
+                dom.downloadScheduleButton.addEventListener('click', downloadSchedule);
+
+                document.body.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('clickable-mandate-name')) showMandateInstallmentSchedule(e.target.dataset.mandateId);
+                    if (e.target.classList.contains('clickable-count')) {
+                        const staffName = e.target.dataset.staffname;
+                        const action = e.target.dataset.action;
+                        if (action === 'show-failed-details') showFailedInstallmentsForStaff(staffName);
+                        else showInstallmentDetailsForStaff(staffName);
+                    }
+                });
+
+                dom.kpiDetailModal.excelBtn.addEventListener('click', () => downloadExcel(currentModalExportData, currentModalExportTitle));
+                dom.mandateDetailModal.excelBtn.addEventListener('click', () => downloadExcel(currentModalExportData, currentModalExportTitle));
+                updateDashboard();
+            } catch (error) {
+                console.error('डॅशबोर्ड सुरू करताना त्रुटी:', error);
+                dom.statusBox.className = 'status-error';
+                dom.statusBox.innerHTML = `<h4>त्रुटी</h4><p>${error.message}</p>`;
+            } finally {
+                dom.loaderOverlay.style.opacity = '0';
+                setTimeout(() => { dom.loaderOverlay.style.display = 'none'; }, 500);
+            }
+        }
+
+        function getFilteredMandates() {
+            const searchTerm = dom.searchInput.value.toLowerCase().trim();
+            const selectedUnit = dom.unitFilter.value;
+            const selectedVillage = dom.villageFilter.value;
+            const selectedStaff = dom.staffFilter.value;
+
+            return allMandatesFromServer.filter(mandate => {
+                const staffInfo = staffDataMap.get(mandate.description);
+                const isStaffFilterMatch = !staffInfo
+                    ? (selectedUnit === 'All' && selectedVillage === 'All' && selectedStaff === 'All')
+                    : (selectedUnit === 'All' || staffInfo.unitName === selectedUnit) &&
+                      (selectedVillage === 'All' || staffInfo.villageName === selectedVillage) &&
+                      (selectedStaff === 'All' || staffInfo.staffName === selectedStaff);
+                if (!isStaffFilterMatch) return false;
+
+                if (searchTerm) {
+                    const customerName = (mandate.customer?.name ?? '').toLowerCase();
+                    const mobile = (mandate.customer?.mobile_number ?? '').toLowerCase();
+                    const billNo = (mandate.description ?? '').toLowerCase();
+                    return customerName.includes(searchTerm) || mobile.includes(searchTerm) || billNo.includes(searchTerm);
+                }
+                return true;
+            });
+        }
+
+        function downloadExcel(data, filename) {
+            if (!data || data.length === 0) { alert('डाउनलोड करण्यासाठी डेटा उपलब्ध नाही.'); return; }
+            const ws = XLSX.utils.json_to_sheet(data);
+            ws['!cols'] = Object.keys(data[0]).map(k => ({ wch: Math.max(k.length, 20) }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Report');
+            XLSX.writeFile(wb, `${filename}.xlsx`);
+        }
+
+        function updateStaffReport() {
+            const startDate = dom.startDateInput.value ? new Date(dom.startDateInput.value).setHours(0,0,0,0) : null;
+            const endDate = dom.endDateInput.value ? new Date(dom.endDateInput.value).setHours(23,59,59,999) : null;
+            if (!startDate || !endDate) {
+                dom.staffReportContent.innerHTML = "<p>रिपोर्ट पाहण्यासाठी कृपया वरून 'पासून' आणि 'पर्यंत' दोन्ही तारखा निवडा.</p>";
+                dom.staffReportExcelBtn.style.display = 'none';
+                return;
+            }
+
+            const staffCollections = new Map();
+            staffReportDetails.clear();
+            staffReportExportData = [];
+            let totalCollectedAmount = 0;
+
+            getFilteredMandates().forEach(mandate => {
+                const installments = allInstallmentData.get(mandate.id);
+                if (!installments) return;
+                installments.forEach(inst => {
+                    const effectiveCollectionDate = getEffectiveDate(inst);
+                    if (collectedAllStatuses.includes(inst.status) && effectiveCollectionDate >= startDate && effectiveCollectionDate <= endDate) {
+                        const staffInfo = staffDataMap.get(mandate.description);
+                        const staffName = staffInfo ? staffInfo.staffName : 'अज्ञात स्टाफ';
+                        if (!staffCollections.has(staffName)) {
+                            staffCollections.set(staffName, { count: 0, amount: 0 });
+                            staffReportDetails.set(staffName, []);
+                        }
+                        staffCollections.get(staffName).count++;
+                        staffCollections.get(staffName).amount += Number(inst.amount || 0);
+                        staffReportDetails.get(staffName).push({ ...inst, mandate_id: mandate.id, customer: mandate.customer, description: mandate.description });
+                        totalCollectedAmount += Number(inst.amount || 0);
+                    }
+                });
+            });
+
+            let summaryHtml = `<h4>एकूण वसुली: ${formatCurrency(totalCollectedAmount)}</h4><table><thead><tr><th>स्टाफचे नाव</th><th>एकूण हप्ते</th><th>एकूण जमा रक्कम</th></tr></thead><tbody>`;
+            const sortedStaff = [...staffCollections.entries()].sort((a,b) => b[1].amount - a[1].amount);
+            if (sortedStaff.length === 0) {
+                summaryHtml += `<tr><td colspan="3" style="text-align:center;">निवडलेल्या कालावधीत कोणतीही वसुली नाही.</td></tr>`;
+                dom.staffReportExcelBtn.style.display = 'none';
+            } else {
+                sortedStaff.forEach(([staffName, data]) => {
+                    summaryHtml += `<tr><td>${staffName}</td><td class="clickable-count" data-staffname="${staffName}">${data.count}</td><td>${formatCurrency(data.amount)}</td></tr>`;
+                    staffReportExportData.push({ 'Staff Name': staffName, 'Total Installments': data.count, 'Total Collected Amount': data.amount });
+                });
+                dom.staffReportExcelBtn.style.display = 'inline-flex';
+            }
+            dom.staffReportContent.innerHTML = summaryHtml + '</tbody></table>';
+        }
+
+        function updateDashboard() {
+            const startDate = dom.startDateInput.value ? new Date(dom.startDateInput.value).setHours(0,0,0,0) : null;
+            const endDate = dom.endDateInput.value ? new Date(dom.endDateInput.value).setHours(23,59,59,999) : null;
+            const todayStart = new Date().setHours(0,0,0,0);
+            const todayEnd = new Date().setHours(23,59,59,999);
+            const filteredMandates = getFilteredMandates();
+            dom.quickStatsTitle.innerText = (startDate || endDate) ? 'निवडलेल्या कालावधीची स्थिती 📊' : 'आजची स्थिती 📊';
+
+            let quickStatCollectedAmount = 0, quickStatDueCount = 0, quickStatFailedCount = 0;
+            let kpiTotalCollectedAmount = 0, kpiTotalSettledAmount = 0, kpiTotalInitiatedAmount = 0;
+            let kpiStaffWiseFailedCount = 0;
+            let percentageTotalDueAmount = 0, percentageCollectedAmount = 0;
+            const isDateInPeriod = (date) => (startDate || endDate) ? ((!startDate || date >= startDate) && (!endDate || date <= endDate)) : (date >= todayStart && date <= todayEnd);
+
+            filteredMandates.forEach(mandate => {
+                const installments = allInstallmentData.get(mandate.id);
+                if (!installments) return;
+                installments.forEach(inst => {
+                    const dueDate = new Date(inst.due_date).getTime();
+                    const effectiveCollectionDate = getEffectiveDate(inst);
+                    const isSuccess = collectedAllStatuses.includes(inst.status);
+
+                    if (isDateInPeriod(dueDate)) {
+                        const isInactiveMandate = ['cancelled','paused','terminated','expired'].includes(mandate.status);
+                        if (!isInactiveMandate) quickStatDueCount++;
+                        if (inst.status === 'collection_failed') quickStatFailedCount++;
+                    }
+
+                    if (isSuccess && isDateInPeriod(effectiveCollectionDate)) quickStatCollectedAmount += Number(inst.amount || 0);
+
+                    const kpiDateRangeCheckForDue = (!startDate && !endDate) ? true : isDateInPeriod(dueDate);
+                    const kpiDateRangeCheckForCollection = (!startDate && !endDate) ? true : isDateInPeriod(effectiveCollectionDate);
+
+                    if (kpiDateRangeCheckForDue) {
+                        percentageTotalDueAmount += Number(inst.amount || 0);
+                        if (inst.status === 'collection_initiated') kpiTotalInitiatedAmount += Number(inst.amount || 0);
+                        if (inst.status === 'collection_failed') kpiStaffWiseFailedCount++;
+                    }
+                    if (kpiDateRangeCheckForCollection) {
+                        if (isSuccess) {
+                            kpiTotalCollectedAmount += Number(inst.amount || 0);
+                            percentageCollectedAmount += Number(inst.amount || 0);
+                        }
+                        if (bankSettledStatuses.includes(inst.status)) kpiTotalSettledAmount += Number(inst.amount || 0);
+                    }
+                });
+            });
+
+            document.getElementById('today-collected').innerText = formatCurrency(quickStatCollectedAmount);
+            document.getElementById('today-due').innerText = quickStatDueCount;
+            document.getElementById('today-failed').innerText = quickStatFailedCount;
+            document.getElementById('kpi-failed-staff-count').innerText = kpiStaffWiseFailedCount;
+            const percentage = percentageTotalDueAmount > 0 ? (percentageCollectedAmount / percentageTotalDueAmount) * 100 : 0;
+            document.getElementById('kpi-collection-percentage').innerText = `${percentage.toFixed(2)}%`;
+
+            const mandatesForKpi = (startDate || endDate) ? filteredMandates.filter(m => {
+                const d = new Date(m.created_at).getTime();
+                return (!startDate || d >= startDate) && (!endDate || d <= endDate);
+            }) : filteredMandates;
+
+            document.getElementById('kpi-total-mandates').innerText = mandatesForKpi.filter(m => ['active','completed'].includes(m.status)).length;
+            document.getElementById('kpi-total-collected').innerText = formatCurrency(kpiTotalCollectedAmount);
+            document.getElementById('kpi-settled-amount').innerText = formatCurrency(kpiTotalSettledAmount);
+            document.getElementById('kpi-initiated-amount').innerText = formatCurrency(kpiTotalInitiatedAmount);
+
+            const searchTerm = dom.searchInput.value.toLowerCase().trim();
+            const selectedUnit = dom.unitFilter.value;
+            const selectedVillage = dom.villageFilter.value;
+            const selectedStaff = dom.staffFilter.value;
+            const pendingMandatesCount = allMandatesFromServer.filter(mandate => {
+                if (mandate.status !== 'pending') return false;
+                const staffInfo = staffDataMap.get(mandate.description);
+                const isStaffFilterMatch = !staffInfo ? (selectedUnit === 'All' && selectedVillage === 'All' && selectedStaff === 'All') : (selectedUnit === 'All' || staffInfo.unitName === selectedUnit) && (selectedVillage === 'All' || staffInfo.villageName === selectedVillage) && (selectedStaff === 'All' || staffInfo.staffName === selectedStaff);
+                if (!isStaffFilterMatch) return false;
+                if (searchTerm) {
+                    const customerName = (mandate.customer?.name ?? '').toLowerCase();
+                    const mobile = (mandate.customer?.mobile_number ?? '').toLowerCase();
+                    const billNo = (mandate.description ?? '').toLowerCase();
+                    return customerName.includes(searchTerm) || mobile.includes(searchTerm) || billNo.includes(searchTerm);
+                }
+                return true;
+            }).length;
+            document.getElementById('kpi-pending-mandates').innerText = pendingMandatesCount;
+
+            const riskyMandatesCount = filteredMandates.filter(m => {
+                if (!['paused','cancelled'].includes(m.status)) return false;
+                if (startDate || endDate) {
+                    const statusDate = m.updated_at ? new Date(m.updated_at).getTime() : 0;
+                    return (!startDate || statusDate >= startDate) && (!endDate || statusDate <= endDate);
+                }
+                return true;
+            }).length;
+            document.getElementById('kpi-risky-count').innerText = riskyMandatesCount;
+            updateStaffReport();
+        }
+
+        function resetFilters() {
+            dom.searchInput.value = '';
+            dom.unitFilter.value = 'All';
+            updateVillageDropdown();
+            dom.startDateInput.value = '';
+            dom.endDateInput.value = '';
+            updateDashboard();
+        }
+
+        function generateWhatsAppMessage(customerName, dueDate, loanNumber, emiAmount) {
+            const message = `नमस्कार, ${customerName} आपण घेतलेल्या कर्जाच्या हप्त्याच्या परतफेडीची तारीख ${dueDate} असून, आपला कर्ज खाते क्रमांक - ${loanNumber} आहे. आपला कर्ज परतफेड हप्ता रक्कम ${emiAmount} असून, कृपया हप्त्याची पुरेशी रक्कम खात्यावर ठेवावी व वेळेवर हप्ता भरुन सहकार्य करावे. - हप्ता वेळेवर भरून आपले सिबील रेकॉर्ड चांगले ठेवा, अनिक फायनान्शियल सर्व्हिसेस प्रा. ली.`;
+            return encodeURIComponent(message);
+        }
+
+        function sendWhatsAppReminder(mobile, customerName, dueDate, loanNumber, emiAmount) {
+            if (!mobile) { alert('या ग्राहकाचा मोबाईल नंबर उपलब्ध नाही.'); return; }
+            const cleanMobile = String(mobile).replace(/[^0-9]/g, '');
+            const fullMobile = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
+            window.open(`https://wa.me/${fullMobile}?text=${generateWhatsAppMessage(customerName, dueDate, loanNumber, emiAmount)}`, '_blank');
+        }
+
+        function showInstallmentDetailsForStaff(staffName) {
+            const details = staffReportDetails.get(staffName);
+            if (!details || details.length === 0) return;
+            dom.kpiDetailModal.title.innerText = `${staffName} - जमा झालेल्या हप्त्यांचा तपशील`;
+            currentModalExportTitle = `${staffName}_Collection_Details`;
+            currentModalExportData = details.map(inst => ({
+                'Customer Name': inst.customer?.name || 'N/A',
+                'Mobile': inst.customer?.mobile_number || 'N/A',
+                'Loan/Bill No': inst.description || 'N/A',
+                'Staff Name': staffName,
+                'Due Date': formatDate(inst.due_date),
+                'Actual Payment Date': actualDateStatuses.includes(inst.status) ? formatDate(getActualDate(inst)) : '-',
+                'Amount': inst.amount,
+                'Status': translateStatus(inst.status)
+            }));
+            dom.kpiDetailModal.excelBtn.style.display = 'inline-flex';
+
+            let tableHtml = `<table><thead><tr><th>ग्राहक</th><th>मोबाईल</th><th>बिल क्र.</th><th>स्टाफ</th><th>देय तारीख (Due)</th><th>प्रत्यक्ष जमा (Actual)</th><th>रक्कम</th><th>स्थिती</th><th>WhatsApp</th></tr></thead><tbody>`;
+            details.forEach(inst => {
+                const actualDate = actualDateStatuses.includes(inst.status) ? formatDate(getActualDate(inst)) : '-';
+                tableHtml += `<tr><td class="clickable-mandate-name" data-mandate-id="${inst.mandate_id}">${inst.customer?.name ?? 'N/A'}</td><td>${inst.customer?.mobile_number ?? 'N/A'}</td><td>${inst.description ?? 'N/A'}</td><td>${staffName}</td><td>${formatDate(inst.due_date)}</td><td style="color:var(--collected-color); font-weight:600;">${actualDate}</td><td>${formatCurrency(inst.amount)}</td><td><span class="status-badge ${getStatusBadgeClass(inst.status)}">${translateStatus(inst.status)}</span></td><td onclick="sendWhatsAppReminder('${inst.customer?.mobile_number}', '${inst.customer?.name}', '${formatDate(inst.due_date)}', '${inst.description}', '${formatCurrency(inst.amount)}')"><span class="whatsapp-icon">💬</span></td></tr>`;
+            });
+            dom.kpiDetailModal.body.innerHTML = `<div class="table-wrapper">${tableHtml}</tbody></table></div>`;
+            dom.kpiDetailModal.open();
+        }
+
+        function showStaffWiseFailedPayments() {
+            const startDate = dom.startDateInput.value ? new Date(dom.startDateInput.value).setHours(0,0,0,0) : null;
+            const endDate = dom.endDateInput.value ? new Date(dom.endDateInput.value).setHours(23,59,59,999) : null;
+            const todayStart = new Date().setHours(0,0,0,0);
+            const todayEnd = new Date().setHours(23,59,59,999);
+            const isDateInPeriod = (date) => (startDate || endDate) ? ((!startDate || date >= startDate) && (!endDate || date <= endDate)) : (date >= todayStart && date <= todayEnd);
+            const staffFailures = new Map();
+            staffFailedDetails.clear();
+
+            getFilteredMandates().forEach(mandate => {
+                const installments = allInstallmentData.get(mandate.id);
+                if (!installments) return;
+                installments.forEach(inst => {
+                    const dueDate = new Date(inst.due_date).getTime();
+                    if (inst.status === 'collection_failed' && isDateInPeriod(dueDate)) {
+                        const staffInfo = staffDataMap.get(mandate.description);
+                        const staffName = staffInfo ? staffInfo.staffName : 'अज्ञात स्टाफ';
+                        if (!staffFailures.has(staffName)) {
+                            staffFailures.set(staffName, { count: 0 });
+                            staffFailedDetails.set(staffName, []);
+                        }
+                        staffFailures.get(staffName).count++;
+                        staffFailedDetails.get(staffName).push({ ...inst, mandate_id: mandate.id, customer: mandate.customer, description: mandate.description });
+                    }
+                });
+            });
+
+            dom.kpiDetailModal.title.innerText = 'स्टाफनुसार अयशस्वी पेमेंट रिपोर्ट';
+            const sortedStaff = [...staffFailures.entries()].sort((a,b) => b[1].count - a[1].count);
+            currentModalExportTitle = 'Staff_Failed_Payment_Summary';
+            currentModalExportData = sortedStaff.map(([staffName, data]) => ({ 'Staff Name': staffName, 'Failed Payment Count': data.count }));
+            dom.kpiDetailModal.excelBtn.style.display = sortedStaff.length > 0 ? 'inline-flex' : 'none';
+            let tableHtml = `<table><thead><tr><th>स्टाफचे नाव</th><th>अयशस्वी पेमेंट संख्या</th></tr></thead><tbody>`;
+            if (sortedStaff.length === 0) tableHtml += `<tr><td colspan="2" style="text-align:center;">निवडलेल्या कालावधीत कोणतेही पेमेंट अयशस्वी नाही.</td></tr>`;
+            else sortedStaff.forEach(([staffName, data]) => tableHtml += `<tr><td>${staffName}</td><td class="clickable-count" data-staffname="${staffName}" data-action="show-failed-details">${data.count}</td></tr>`);
+            dom.kpiDetailModal.body.innerHTML = `<div class="table-wrapper">${tableHtml}</tbody></table></div>`;
+            dom.kpiDetailModal.open();
+        }
+
+        function showFailedInstallmentsForStaff(staffName) {
+            const details = staffFailedDetails.get(staffName);
+            if (!details || details.length === 0) return;
+            dom.kpiDetailModal.title.innerText = `${staffName} - अयशस्वी झालेल्या हप्त्यांचा तपशील`;
+            currentModalExportTitle = `${staffName}_Failed_Installments`;
+            currentModalExportData = details.map(inst => ({
+                'Customer Name': inst.customer?.name || 'N/A',
+                'Mobile': inst.customer?.mobile_number || 'N/A',
+                'Loan/Bill No': inst.description || 'N/A',
+                'Staff Name': staffName,
+                'Due Date': formatDate(inst.due_date),
+                'Amount': inst.amount,
+                'Failure Reason': 'खात्यात पैसे कमी',
+                'Status': translateStatus(inst.status)
+            }));
+            dom.kpiDetailModal.excelBtn.style.display = 'inline-flex';
+            let tableHtml = `<table><thead><tr><th>ग्राहक</th><th>मोबाईल</th><th>बिल क्र.</th><th>स्टाफ</th><th>देय तारीख</th><th>रक्कम</th><th>कारण (Reason)</th><th>स्थिती</th><th>WhatsApp</th></tr></thead><tbody>`;
+            details.forEach(inst => {
+                tableHtml += `<tr><td class="clickable-mandate-name" data-mandate-id="${inst.mandate_id}">${inst.customer?.name ?? 'N/A'}</td><td>${inst.customer?.mobile_number ?? 'N/A'}</td><td>${inst.description ?? 'N/A'}</td><td>${staffName}</td><td>${formatDate(inst.due_date)}</td><td>${formatCurrency(inst.amount)}</td><td class="reason-text">खात्यात पैसे कमी</td><td><span class="status-badge status-failed">${translateStatus(inst.status)}</span></td><td onclick="sendWhatsAppReminder('${inst.customer?.mobile_number}', '${inst.customer?.name}', '${formatDate(inst.due_date)}', '${inst.description}', '${formatCurrency(inst.amount)}')"><span class="whatsapp-icon">💬</span></td></tr>`;
+            });
+            dom.kpiDetailModal.body.innerHTML = `<div class="table-wrapper">${tableHtml}</tbody></table></div>`;
+        }
+
+        function showMandateInstallmentSchedule(mandateId) {
+            const mandate = allMandateDataMap.get(mandateId);
+            const installments = allInstallmentData.get(mandateId);
+            if (!mandate || !installments) { alert('या मँडेटची माहिती उपलब्ध नाही.'); return; }
+            dom.mandateDetailModal.title.innerText = mandate.customer?.name || 'ग्राहक तपशील';
+            dom.mandateDetailModal.subtitle.innerText = `बिल/संदर्भ: ${mandate.description || 'N/A'}`;
+            const sortedInstallments = [...installments].sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
+            currentModalExportTitle = `Schedule_${mandate.customer?.name || 'Customer'}`;
+            currentModalExportData = sortedInstallments.map((inst, index) => ({
+                'Installment No': index + 1,
+                'Due Date': formatDate(inst.due_date),
+                'Actual Payment Date': actualDateStatuses.includes(inst.status) ? formatDate(getActualDate(inst)) : '-',
+                'Amount': inst.amount,
+                'Status': translateStatus(inst.status)
+            }));
+            dom.mandateDetailModal.excelBtn.style.display = 'inline-flex';
+            let tableHtml = `<table><thead><tr><th>#</th><th>देय तारीख (Due)</th><th>प्रत्यक्ष जमा (Actual)</th><th>रक्कम</th><th>स्थिती</th></tr></thead><tbody>`;
+            sortedInstallments.forEach((inst, index) => {
+                const actualDate = actualDateStatuses.includes(inst.status) ? formatDate(getActualDate(inst)) : '-';
+                tableHtml += `<tr><td>${index + 1}</td><td>${formatDate(inst.due_date)}</td><td style="color:${actualDate !== '-' ? 'green' : 'inherit'}; font-weight:bold;">${actualDate}</td><td>${formatCurrency(inst.amount)}</td><td><span class="status-badge ${getStatusBadgeClass(inst.status)}">${translateStatus(inst.status)}</span></td></tr>`;
+            });
+            dom.mandateDetailModal.body.innerHTML = `<div class="table-wrapper">${tableHtml}</tbody></table></div>`;
+            dom.mandateDetailModal.open();
+        }
+
+        function showKpiDetails(kpiType) {
+            const filteredMandates = getFilteredMandates();
+            let modalTitle = '', tableHtml = '';
+            const mandateDetailsHeader = `<thead><tr><th>ग्राहक</th><th>मोबाईल</th><th>बिल क्र.</th><th>रक्कम</th><th>स्थिती</th></tr></thead><tbody>`;
+            const failedDetailsHeader = `<thead><tr><th>ग्राहक</th><th>मोबाईल</th><th>बिल क्र.</th><th>स्टाफ</th><th>देय तारीख</th><th>रक्कम</th><th>कारण (Reason)</th><th>स्थिती</th><th>WhatsApp</th></tr></thead><tbody>`;
+            const installmentDetailsHeader = `<thead><tr><th>ग्राहक</th><th>मोबाईल</th><th>बिल क्र.</th><th>स्टाफ</th><th>देय तारीख (Due)</th><th>प्रत्यक्ष जमा (Actual)</th><th>रक्कम</th><th>स्थिती</th><th>WhatsApp</th></tr></thead><tbody>`;
+
+            switch (kpiType) {
+                case 'risky': {
+                    modalTitle = 'धोकादायक ग्राहक (Cancelled/Paused)';
+                    const startDateRisky = dom.startDateInput.value ? new Date(dom.startDateInput.value).setHours(0,0,0,0) : null;
+                    const endDateRisky = dom.endDateInput.value ? new Date(dom.endDateInput.value).setHours(23,59,59,999) : null;
+                    const riskyList = filteredMandates.filter(m => {
+                        if (!['paused','cancelled'].includes(m.status)) return false;
+                        if (startDateRisky || endDateRisky) {
+                            const statusDate = m.updated_at ? new Date(m.updated_at).getTime() : 0;
+                            return (!startDateRisky || statusDate >= startDateRisky) && (!endDateRisky || statusDate <= endDateRisky);
+                        }
+                        return true;
+                    });
+                    currentModalExportTitle = 'Risky_Customers';
+                    currentModalExportData = riskyList.map(m => {
+                        const staffInfo = staffDataMap.get(m.description);
+                        return { 'Customer Name': m.customer?.name || 'N/A', 'Village': staffInfo ? staffInfo.villageName : 'N/A', 'Mobile': m.customer?.mobile_number || 'N/A', 'Loan/Bill No': m.description || 'N/A', 'Status Change Date': m.updated_at ? formatDate(m.updated_at) : 'N/A', 'Status': translateStatus(m.status) };
+                    });
+                    tableHtml = `<table><thead><tr><th>ग्राहक</th><th>गाव</th><th>मोबाईल</th><th>बिल क्र.</th><th>तारीख</th><th>स्थिती</th></tr></thead><tbody>`;
+                    riskyList.forEach(m => {
+                        const staffInfo = staffDataMap.get(m.description);
+                        tableHtml += `<tr><td class="clickable-mandate-name" data-mandate-id="${m.id}">${m.customer?.name ?? 'N/A'}</td><td>${staffInfo ? staffInfo.villageName : 'N/A'}</td><td>${m.customer?.mobile_number ?? 'N/A'}</td><td>${m.description ?? 'N/A'}</td><td>${m.updated_at ? formatDate(m.updated_at) : '-'}</td><td><span class="status-badge status-failed">${translateStatus(m.status)}</span></td></tr>`;
+                    });
+                    if (riskyList.length === 0) tableHtml += '<tr><td colspan="6" style="text-align:center;">निवडलेल्या कालावधीत धोकादायक ग्राहक आढळले नाहीत.</td></tr>';
+                    break;
+                }
+                case 'total': {
+                    modalTitle = 'एकूण सक्रिय मँडेट्स';
+                    const activeOnlyList = filteredMandates.filter(m => ['active','completed'].includes(m.status));
+                    currentModalExportTitle = 'Total_Active_Mandates';
+                    currentModalExportData = activeOnlyList.map(m => ({ 'Customer Name': m.customer?.name || 'N/A', 'Mobile': m.customer?.mobile_number || 'N/A', 'Loan/Bill No': m.description || 'N/A', 'Amount': m.amount, 'Status': translateStatus(m.status) }));
+                    tableHtml = `<table>${mandateDetailsHeader}`;
+                    activeOnlyList.forEach(m => tableHtml += `<tr><td class="clickable-mandate-name" data-mandate-id="${m.id}">${m.customer?.name ?? 'N/A'}</td><td>${m.customer?.mobile_number ?? 'N/A'}</td><td>${m.description ?? 'N/A'}</td><td>${formatCurrency(m.amount)}</td><td>${translateStatus(m.status)}</td></tr>`);
+                    if (activeOnlyList.length === 0) tableHtml += '<tr><td colspan="5" style="text-align:center;">माहिती उपलब्ध नाही.</td></tr>';
+                    break;
+                }
+                case 'pending': {
+                    modalTitle = 'प्रलंबित मँडेट्स';
+                    const searchTermForPending = dom.searchInput.value.toLowerCase().trim();
+                    const selectedUnitForPending = dom.unitFilter.value;
+                    const selectedVillageForPending = dom.villageFilter.value;
+                    const selectedStaffForPending = dom.staffFilter.value;
+                    const pendingMandatesList = allMandatesFromServer.filter(mandate => {
+                        if (mandate.status !== 'pending') return false;
+                        const staffInfo = staffDataMap.get(mandate.description);
+                        const isStaffFilterMatch = !staffInfo ? (selectedUnitForPending === 'All' && selectedVillageForPending === 'All' && selectedStaffForPending === 'All') : (selectedUnitForPending === 'All' || staffInfo.unitName === selectedUnitForPending) && (selectedVillageForPending === 'All' || staffInfo.villageName === selectedVillageForPending) && (selectedStaffForPending === 'All' || staffInfo.staffName === selectedStaffForPending);
+                        if (!isStaffFilterMatch) return false;
+                        if (searchTermForPending) {
+                            const customerName = (mandate.customer?.name ?? '').toLowerCase();
+                            const mobile = (mandate.customer?.mobile_number ?? '').toLowerCase();
+                            const billNo = (mandate.description ?? '').toLowerCase();
+                            return customerName.includes(searchTermForPending) || mobile.includes(searchTermForPending) || billNo.includes(searchTermForPending);
+                        }
+                        return true;
+                    });
+                    currentModalExportTitle = 'Pending_Mandates';
+                    currentModalExportData = pendingMandatesList.map(m => ({ 'Customer Name': m.customer?.name || 'N/A', 'Mobile': m.customer?.mobile_number || 'N/A', 'Loan/Bill No': m.description || 'N/A' }));
+                    tableHtml = `<table><thead><tr><th>ग्राहक नाव</th><th>मोबाईल नंबर</th><th>लोन नंबर</th></tr></thead><tbody>`;
+                    pendingMandatesList.forEach(m => tableHtml += `<tr><td>${m.customer?.name ?? 'N/A'}</td><td>${m.customer?.mobile_number ?? 'N/A'}</td><td>${m.description ?? 'N/A'}</td></tr>`);
+                    if (pendingMandatesList.length === 0) tableHtml += '<tr><td colspan="3" style="text-align:center;">निवडलेल्या फिल्टरनुसार प्रलंबित मँडेट्स नाहीत.</td></tr>';
+                    break;
+                }
+                default: {
+                    const startDate = dom.startDateInput.value ? new Date(dom.startDateInput.value).setHours(0,0,0,0) : null;
+                    const endDate = dom.endDateInput.value ? new Date(dom.endDateInput.value).setHours(23,59,59,999) : null;
+                    const todayStart = new Date().setHours(0,0,0,0);
+                    const todayEnd = new Date().setHours(23,59,59,999);
+                    const checkDateRange = (date) => (startDate || endDate) ? ((!startDate || date >= startDate) && (!endDate || date <= endDate)) : (date >= todayStart && date <= todayEnd);
+                    let relevantData = [];
+
+                    filteredMandates.forEach(mandate => {
+                        const installments = allInstallmentData.get(mandate.id);
+                        if (!installments) return;
+                        installments.forEach(inst => {
+                            const dueDate = new Date(inst.due_date).getTime();
+                            const effectiveCollectionDate = getEffectiveDate(inst);
+                            let condition = false;
+                            const kpiDateRangeForDue = (!startDate && !endDate) ? true : checkDateRange(dueDate);
+                            const kpiDateRangeForCollection = (!startDate && !endDate) ? true : checkDateRange(effectiveCollectionDate);
+
+                            if (kpiType === 'collected' && collectedAllStatuses.includes(inst.status) && kpiDateRangeForCollection) condition = true;
+                            if (kpiType === 'initiated' && inst.status === 'collection_initiated' && kpiDateRangeForDue) condition = true;
+                            if (kpiType === 'settled' && bankSettledStatuses.includes(inst.status) && kpiDateRangeForCollection) condition = true;
+                            if (kpiType === 'today_due' && checkDateRange(dueDate) && !['cancelled','paused','terminated'].includes(mandate.status)) condition = true;
+                            if (kpiType === 'today_collected' && collectedAllStatuses.includes(inst.status) && checkDateRange(effectiveCollectionDate)) condition = true;
+                            if (kpiType === 'today_failed' && inst.status === 'collection_failed' && checkDateRange(dueDate)) condition = true;
+
+                            if (condition) relevantData.push({ ...inst, mandate_id: mandate.id, customer: mandate.customer, description: mandate.description });
+                        });
+                    });
+
+                    const periodText = (startDate || endDate) ? 'निवडलेल्या कालावधीत' : 'आज';
+                    const titleMap = { 'today_due': `${periodText} देय असलेले हप्ते`, 'today_collected': `${periodText} जमा झालेले हप्ते`, 'today_failed': `${periodText} अयशस्वी पेमेंट`, 'collected': 'एकूण जमा झालेले हप्ते', 'initiated': 'पेमेंट प्रक्रियेत असलेले हप्ते', 'settled': 'बँकेत जमा झालेले हप्ते' };
+                    modalTitle = titleMap[kpiType] || 'तपशील';
+                    relevantData.sort((a,b) => new Date(a.due_date) - new Date(b.due_date));
+                    currentModalExportTitle = kpiType;
+                    currentModalExportData = relevantData.map(inst => {
+                        const staffInfo = staffDataMap.get(inst.description);
+                        const exportObj = {
+                            'Customer Name': inst.customer?.name || 'N/A',
+                            'Mobile': inst.customer?.mobile_number || 'N/A',
+                            'Loan/Bill No': inst.description || 'N/A',
+                            'Staff Name': staffInfo ? staffInfo.staffName : 'N/A',
+                            'Due Date': formatDate(inst.due_date),
+                            'Actual Payment Date': actualDateStatuses.includes(inst.status) ? formatDate(getActualDate(inst)) : '-',
+                            'Amount': inst.amount
+                        };
+                        if (kpiType === 'today_failed' || kpiType === 'failed') exportObj['Failure Reason'] = 'खात्यात पैसे कमी';
+                        exportObj['Status'] = translateStatus(inst.status);
+                        return exportObj;
+                    });
+
+                    tableHtml = kpiType === 'today_failed' ? `<table>${failedDetailsHeader}` : `<table>${installmentDetailsHeader}`;
+                    relevantData.forEach(inst => {
+                        const actualDate = actualDateStatuses.includes(inst.status) ? formatDate(getActualDate(inst)) : '-';
+                        const staffInfo = staffDataMap.get(inst.description);
+                        const staffName = staffInfo ? staffInfo.staffName : 'N/A';
+                        if (kpiType === 'today_failed') {
+                            tableHtml += `<tr><td class="clickable-mandate-name" data-mandate-id="${inst.mandate_id}">${inst.customer?.name ?? 'N/A'}</td><td>${inst.customer?.mobile_number ?? 'N/A'}</td><td>${inst.description ?? 'N/A'}</td><td>${staffName}</td><td>${formatDate(inst.due_date)}</td><td>${formatCurrency(inst.amount)}</td><td class="reason-text">खात्यात पैसे कमी</td><td>${translateStatus(inst.status)}</td><td onclick="sendWhatsAppReminder('${inst.customer?.mobile_number}', '${inst.customer?.name}', '${formatDate(inst.due_date)}', '${inst.description}', '${formatCurrency(inst.amount)}')"><span class="whatsapp-icon">💬</span></td></tr>`;
+                        } else {
+                            tableHtml += `<tr><td class="clickable-mandate-name" data-mandate-id="${inst.mandate_id}">${inst.customer?.name ?? 'N/A'}</td><td>${inst.customer?.mobile_number ?? 'N/A'}</td><td>${inst.description ?? 'N/A'}</td><td>${staffName}</td><td>${formatDate(inst.due_date)}</td><td style="color:var(--collected-color); font-weight:600;">${actualDate}</td><td>${formatCurrency(inst.amount)}</td><td>${translateStatus(inst.status)}</td><td onclick="sendWhatsAppReminder('${inst.customer?.mobile_number}', '${inst.customer?.name}', '${formatDate(inst.due_date)}', '${inst.description}', '${formatCurrency(inst.amount)}')"><span class="whatsapp-icon">💬</span></td></tr>`;
+                        }
+                    });
+                    if (relevantData.length === 0) tableHtml += `<tr><td colspan="9" style="text-align:center;">माहिती उपलब्ध नाही.</td></tr>`;
+                    break;
+                }
+            }
+
+            dom.kpiDetailModal.excelBtn.style.display = currentModalExportData.length > 0 ? 'inline-flex' : 'none';
+            dom.kpiDetailModal.title.innerText = modalTitle;
+            dom.kpiDetailModal.body.innerHTML = `<div class="table-wrapper">${tableHtml}</tbody></table></div>`;
+            dom.kpiDetailModal.open();
+        }
+
+        function getBase64Image(url, callback) {
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                callback(canvas.toDataURL('image/png'));
+            };
+            img.onerror = () => callback(null);
+            img.src = url;
+        }
+
+        function downloadSchedule() {
+            const startDate = dom.startDateInput.value ? new Date(dom.startDateInput.value).setHours(0,0,0,0) : null;
+            const endDate = dom.endDateInput.value ? new Date(dom.endDateInput.value).setHours(23,59,59,999) : null;
+            if (!startDate || !endDate) { alert("कृपया शेड्यूल डाउनलोड करण्यासाठी 'पासून' आणि 'पर्यंत' दोन्ही तारखा निवडा."); return; }
+            let scheduleData = [];
+            const activeMandates = getFilteredMandates().filter(m => ['active','completed'].includes(m.status));
+            activeMandates.forEach(mandate => {
+                const installments = allInstallmentData.get(mandate.id);
+                if (!installments) return;
+                installments.forEach(inst => {
+                    const dueDate = new Date(inst.due_date).getTime();
+                    if (dueDate >= startDate && dueDate <= endDate) {
+                        const staffInfo = staffDataMap.get(mandate.description);
+                        scheduleData.push({
+                            customerName: mandate.customer?.name || 'N/A',
+                            mobileNumber: mandate.customer?.mobile_number || 'N/A',
+                            villageName: staffInfo ? staffInfo.villageName : 'N/A',
+                            acNumber: mandate.description || 'N/A',
+                            emiAmount: Number(inst.amount || 0),
+                            emiDate: inst.due_date,
+                            emiDateFormatted: formatDate(inst.due_date)
+                        });
+                    }
+                });
+            });
+            if (scheduleData.length === 0) { alert('निवडलेल्या कालावधीत आणि फिल्टरमध्ये कोणतेही शेड्यूल उपलब्ध नाही.'); return; }
+            scheduleData.sort((a,b) => a.emiDate - b.emiDate);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+            getBase64Image('https://anikfin.com/wp-content/uploads/2024/06/anik-horizontal-1-1024x400.png', (base64Img) => {
+                if (base64Img) doc.addImage(base64Img, 'PNG', 40, 25, 150, 60);
+                doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+                doc.text('EMI Collection Schedule', doc.internal.pageSize.getWidth() / 2, 110, { align: 'center' });
+                let filterParts = [];
+                if (dom.unitFilter.value !== 'All') filterParts.push(`Unit: ${dom.unitFilter.value}`);
+                if (dom.villageFilter.value !== 'All') filterParts.push(`Village: ${dom.villageFilter.value}`);
+                if (dom.staffFilter.value !== 'All') filterParts.push(`Staff: ${dom.staffFilter.value}`);
+                const filterText = filterParts.length > 0 ? filterParts.join(' | ') : 'All Records';
+                doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+                doc.text(filterText, doc.internal.pageSize.getWidth() / 2, 130, { align: 'center' });
+                doc.setFontSize(11);
+                doc.text(`Period: ${dom.startDateInput.value} to ${dom.endDateInput.value}`, doc.internal.pageSize.getWidth() / 2, 145, { align: 'center' });
+                const head = [['#', 'Customer Name', 'Mobile Number', 'Village', 'AC Number', 'EMI Amount', 'EMI Date']];
+                const totalAmount = scheduleData.reduce((sum, row) => sum + row.emiAmount, 0);
+                const body = scheduleData.map((row, index) => [index + 1, row.customerName, row.mobileNumber, row.villageName, row.acNumber, { content: Number(row.emiAmount).toLocaleString('en-IN'), styles: { halign: 'right' } }, row.emiDateFormatted]);
+                doc.autoTable({ head, body, startY: 160, theme: 'grid', headStyles: { fillColor: [0,123,255], textColor: 255, fontStyle: 'bold' }, styles: { fontSize: 9, cellPadding: 5 }, columnStyles: { 0: { halign: 'center', cellWidth: 30 }, 5: { halign: 'right' } } });
+                const finalY = doc.autoTable.previous.finalY;
+                const summaryBody = [[{ content: 'Grand Total:', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } }, { content: `${scheduleData.length} EMIs`, styles: { halign: 'center', fontStyle: 'bold' } }, { content: Number(totalAmount).toLocaleString('en-IN'), styles: { halign: 'right', fontStyle: 'bold' } }, '']];
+                doc.autoTable({ body: summaryBody, startY: finalY + 10, theme: 'grid', styles: { fontSize: 10, cellPadding: 6 } });
+                doc.save('emi_schedule.pdf');
+            });
+        }
+
+        document.querySelectorAll('.close-button').forEach(btn => {
+            btn.onclick = () => {
+                const modalId = btn.dataset.modalId;
+                if (modalId === 'kpiDetailModal') dom.kpiDetailModal.close();
+                if (modalId === 'mandateDetailModal') dom.mandateDetailModal.close();
+            };
+        });
+
+        window.onclick = (event) => {
+            if (event.target === dom.kpiDetailModal.modal) dom.kpiDetailModal.close();
+            if (event.target === dom.mandateDetailModal.modal) dom.mandateDetailModal.close();
+        };
+
+        window.addEventListener('load', initializeDashboard);
+    </script>
+</body>
+</html>
